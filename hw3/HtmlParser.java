@@ -186,7 +186,8 @@ class CsvDataParser {
 
     public static void addStockData(String filePath, StockData sd) {
         ArrayList<String> csvLines = readAsLines(filePath);
-        if (csvLines.size() == 0) {
+        if (csvLines.size() <= 1) {
+            csvLines.clear();
             String stockRow = "";
             for (String stockName : sd.getStockList()) {
                 stockRow += stockName + ",";
