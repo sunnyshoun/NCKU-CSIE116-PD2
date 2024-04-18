@@ -1,0 +1,14 @@
+classDiagram
+        class test {     +int  studentID
+ -int[]studentIDs
+- String[]    studentNames    
+           +study ()    }
+
+class test {
+    -String studentName
+      +getStudentNames   (   )String[]
+}
+         test  :    + setStudentNames(String[]     studentNames)
+
+   test :  +  isTest (    String[] abc,int[     ] nums     ,        int num     ) int
+   test:+getStudentIDs(int a,int [   ]b)int[]
