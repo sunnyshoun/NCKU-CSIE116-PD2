@@ -115,7 +115,7 @@ class StockCrawler {
     }
 }
 
-class CsvDataParser {
+class MyPanda {
     public static void writeFile(String filePath, String fileContent, boolean appendMode) {
         File file = new File(filePath);
         try {
@@ -309,18 +309,18 @@ public class HtmlParser {
     public static void main(String[] args) {
         if (args[0].equals("0")) {
             StockData sd = StockCrawler.crawlStockData();
-            CsvDataParser.addStockData("data.csv", sd);
+            MyPanda.addStockData("data.csv", sd);
         }
         else if (args[0].equals("1")){
             if (args[1].equals("0")) {
-                ArrayList<String> csvLines = CsvDataParser.readAsLines("data.csv");
+                ArrayList<String> csvLines = MyPanda.readAsLines("data.csv");
                 ArrayList<String> outputData = new ArrayList<String>();
                 for (String line : csvLines) {
                     if (line.startsWith("null") == false) {
                         outputData.add(line);
                     }
                 }
-                CsvDataParser.writeByLines("output.csv", outputData, false);
+                MyPanda.writeByLines("output.csv", outputData, true);
             }
             else {
                 String stockName = args[2];
@@ -329,7 +329,7 @@ public class HtmlParser {
                 CsvTable table = new CsvTable();
 
                 if (args[1].equals("3")) {
-                    ArrayList<StockData> sdList = CsvDataParser.readAsStockDataList("data.csv");
+                    ArrayList<StockData> sdList = MyPanda.readAsStockDataList("data.csv");
                     ArrayList<String> stockNames = sdList.get(0).getStockList();
                     Map<String, Double> stockStdDevMap = new HashMap<String, Double>();
                     for (int i = 0; i < stockNames.size(); i++) {
@@ -359,11 +359,11 @@ public class HtmlParser {
                     }
                     table.appendData(startDate, endDate);
                     table.appendRow(top3StdDev.toArray());
-                    CsvDataParser.writeByLines("output.csv", table.parseToCsvLines(), true);
+                    MyPanda.writeByLines("output.csv", table.parseToCsvLines(), true);
                 }
                 else {
                     table.appendRow(stockName, startDate, endDate);
-                    ArrayList<Double> prices = CsvDataParser.getStockPrice("data.csv", stockName, startDate, endDate);
+                    ArrayList<Double> prices = MyPanda.getStockPrice("data.csv", stockName, startDate, endDate);
                     if (args[1].equals("1")) {
                         table.createNewRow();
                         for (int i = 0; i < endDate - (3 + startDate); i++) {
@@ -381,7 +381,7 @@ public class HtmlParser {
                         LinearRegression LR = new LinearRegression(prices, startDate, endDate);
                         table.appendRow(LR.getSlope(), LR.getIntercept());
                     }
-                    CsvDataParser.writeByLines("output.csv", table.parseToCsvLines(), true);
+                    MyPanda.writeByLines("output.csv", table.parseToCsvLines(), true);
                 }
             }
         }
