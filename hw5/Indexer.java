@@ -1,76 +1,61 @@
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.Serializable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
-import java.io.BufferedWriter;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.Set;
 import java.util.HashSet;
 import java.util.ArrayList;
-import java.util.Scanner;
 
 public class Indexer {
-    public static void setTotalDocsNum(String corpusName, int totalNum) {
-        String docsDataPath = "./DocsData/%s/totalDocsNum".formatted(corpusName, totalNum);
-        MyFileIO.writeIntData(totalNum, docsDataPath);
-    }
-
-    public static int getTotalDocsNum(String corpusName) {
-        String docsDataPath = "./DocsData/%s/totalDocsNum".formatted(corpusName);
-        return MyFileIO.readIntData(docsDataPath);
-    }
-
-    public static void setDocWordNum(String corpusName, int docID, int num) {
-        String docsDataPath = "./DocsData/%s/docWordNum/doc%d".formatted(corpusName, docID);
-        MyFileIO.writeIntData(num, docsDataPath);
-    }
-
-    public static int getDocWordNum(String corpusName, int docID) {
-        String docsDataPath = "./DocsData/%s/docWordNum/doc%d".formatted(corpusName, docID);
-        return MyFileIO.readIntData(docsDataPath);
-    }
-
-    public static int getWordNum(String corpusName, int docID, String term) {
-        String nodePath = "./DocsData/%s/Trie".formatted(corpusName);
-        for (char c : term.toCharArray()) {
-            nodePath += "/" + c;
+    public static void buildCorpusData(String corpusName, ArrayList<String> docs) {
+        int totalDocNum = docs.size();
+        Trie allTrie = new Trie();
+        ArrayList<HashMap<String, Double>> tfidfDB = new ArrayList<>();
+        HashMap<String, HashSet<Integer>> containDocMap = new HashMap<>();
+        for (int i = 0; i < docs.size(); i++) {
+            String[] words = docs.get(i).split(" ");
+            int docWordNum = words.length;
+            Trie docTrie = new Trie();
+            HashMap<String, Double> TfIdfMap = new HashMap<>();
+            for (String term : words) {
+                if (docTrie.insert(term) == true) {
+                    allTrie.insert(term);
+                }
+            }
+            for (String term : words) {
+                if (containDocMap.containsKey(term) == false) {
+                    containDocMap.put(term, new HashSet<Integer>());
+                }
+                containDocMap.get(term).add(i);
+                TfIdfMap.put(term, TFIDF.tf(term, docWordNum, docTrie));
+            }
+            tfidfDB.add(TfIdfMap);
         }
-        nodePath += "/doc" + docID;
-        return MyFileIO.readIntData(nodePath + "/doc" + docID);
-    }
-
-    public static void buildTrie(String corpusName, ArrayList<String> docs) {
-        setTotalDocsNum(corpusName, docs.size());
-        Trie trie = new Trie();
-        for(int i = 0; i < docs.size(); i++) {
-            String[] terms = docs.get(i).trim().split(" ");
-            // setDocWordNum(corpusName, i, terms.length);
-            for (String word : terms) {
-                trie.insert(word, i);
+        for (int i = 0; i < tfidfDB.size(); i++) {
+            for (Map.Entry<String, Double> entry : tfidfDB.get(i).entrySet()) {
+                double idf = TFIDF.idf(entry.getKey(), totalDocNum, allTrie);
+                tfidfDB.get(i).put(entry.getKey(), TFIDF.tf_idf(entry.getValue(), idf));
             }
         }
-        // MyFileIO.writeObj(allTrie, "./DocsData/%s/containDocsNum".formatted(corpusName));
-        trie.serialize(null, "./DocsData/%s/containDocs".formatted(corpusName));
+        MyFileIO.writeObj(tfidfDB, "CorpusDatas/%s/tfidfDB".formatted(corpusName));
+        MyFileIO.writeObj(containDocMap, "CorpusDatas/%s/containDocMap".formatted(corpusName));
     }
 
-    // public static Set<Integer> getContainDocs(String corpusName, String term) {
-    //     String nodePath = "./DocsData/%s/Trie".formatted(corpusName);
+    public static ArrayList<HashMap<String, Double>> getTfIdfMap(String corpusName) {
+        return MyFileIO.readtfidfDB("CorpusDatas/%s/tfidfDB".formatted(corpusName));
+    }
 
-    //     for (char c : term.toCharArray()) {
-    //         nodePath += "/" + c;
-    //     }
-    //     return MyFileIO.readObj(nodePath);
-    // }
+    public static HashMap<String, HashSet<Integer>> getContainDocMap(String corpusName) {
+        return MyFileIO.readContainDocSet("CorpusDatas/%s/containDocMap".formatted(corpusName));
+    }
 }
 
 class TrieNode {
     public HashMap<Character, TrieNode> childs = new HashMap<>();
-    public HashSet<Integer> containDocs = new HashSet<>();
+    public transient int count;
 }
 
 class Trie {
@@ -80,44 +65,69 @@ class Trie {
         this.root = new TrieNode();
     }
 
-    public void insert(String word, int docID) {
+    public boolean insert(String word) {
         if (word == null || word.length() == 0) {
-            return;
+            return false;
         }
 
         TrieNode curNode = this.root;
         for (int i = 0; i < word.length(); i++) {
             char c = word.charAt(i);
-            if (curNode.childs.get(c) == null) {
+            if (curNode.childs.containsKey(c) == false) {
                 curNode.childs.put(c, new TrieNode());
             }
             curNode = curNode.childs.get(c);
         }
-        curNode.containDocs.add(docID);
+        curNode.count++;
+        if (curNode.count == 1) {
+            return true;
+        }
+        return false;
     }
 
-    public void serialize(TrieNode curNode, String triePath) {
-        if (curNode == null) {
-            curNode = this.root;
+    public TrieNode getNode(String word) {
+        if (word == null || word.length() == 0) {
+            return null;
         }
-        for (Map.Entry<Character, TrieNode> entry : curNode.childs.entrySet()) {
-            char c = entry.getKey();
-            TrieNode nextNode = entry.getValue();
-            MyFileIO.writeObj(nextNode.containDocs, triePath + "/" + c);
-            serialize(nextNode, triePath + "/" + c);
+
+        TrieNode curNode = this.root;
+        for (int i = 0; i < word.length(); i++) {
+            char c = word.charAt(i);
+            if (curNode.childs.containsKey(c) == false) {
+                return null;
+            }
+            curNode = curNode.childs.get(c);
         }
+        if (curNode.count == 0) {
+            return null;
+        }
+        return curNode;
     }
 }
 
 class MyFileIO {
 
-    public static void writeObj(HashSet<Integer> Set, String filePath) {
+    public static void writeObj(ArrayList<HashMap<String, Double>> tfidfDB, String filePath) {
         try {
             File f = new File(filePath);
             f.getParentFile().mkdirs();
             FileOutputStream fileOut = new FileOutputStream(filePath + ".ser");
             ObjectOutputStream out = new ObjectOutputStream(fileOut);
-            out.writeObject(Set);
+            out.writeObject(tfidfDB);
+            out.close();
+            fileOut.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void writeObj(HashMap<String, HashSet<Integer>> containDocMap, String filePath) {
+        try {
+            File f = new File(filePath);
+            f.getParentFile().mkdirs();
+            FileOutputStream fileOut = new FileOutputStream(filePath + ".ser");
+            ObjectOutputStream out = new ObjectOutputStream(fileOut);
+            out.writeObject(containDocMap);
             out.close();
             fileOut.close();
         } catch (IOException e) {
@@ -126,12 +136,12 @@ class MyFileIO {
     }
 
     @SuppressWarnings("unchecked")
-    public static HashSet<Integer> readObj(String filePath) {
-        HashSet<Integer> set = null;
+    public static ArrayList<HashMap<String, Double>> readtfidfDB(String filePath) {
+        ArrayList<HashMap<String, Double>> tfidfDB = null;
         try {
             FileInputStream fileIn = new FileInputStream(filePath + ".ser");
             ObjectInputStream in = new ObjectInputStream(fileIn);
-            set = (HashSet<Integer>) in.readObject();
+            tfidfDB = (ArrayList<HashMap<String, Double>>) in.readObject();
             in.close();
             fileIn.close();
 
@@ -140,37 +150,48 @@ class MyFileIO {
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         }
-        return set;
+        return tfidfDB;
     }
 
-    public static void writeIntData(int num, String filePath) {
+    @SuppressWarnings("unchecked")
+    public static HashMap<String, HashSet<Integer>> readContainDocSet(String filePath) {
+        HashMap<String, HashSet<Integer>> tfidfDB = null;
         try {
-            File f = new File(filePath);
-            f.getParentFile().mkdirs();
-            BufferedWriter writer = new BufferedWriter(new FileWriter(filePath + ".txt"));
-            writer.write(Integer.toString(num));
-            writer.close();
+            FileInputStream fileIn = new FileInputStream(filePath + ".ser");
+            ObjectInputStream in = new ObjectInputStream(fileIn);
+            tfidfDB = (HashMap<String, HashSet<Integer>>) in.readObject();
+            in.close();
+            fileIn.close();
+
         } catch (IOException e) {
             e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
         }
+        return tfidfDB;
+    }
+}
+
+class TFIDF {
+    public static double tf(String term, int docWordNum, Trie trie) {
+        TrieNode node = trie.getNode(term);
+        if (node == null) {
+            return 0.0;
+        }
+        double wordNumInDoc = (double) node.count;
+        return wordNumInDoc / docWordNum;
     }
 
-    public static int readIntData(String filePath) {
-        int result = 0;
-        try {
-            File f = new File(filePath + ".txt");
-            if (f.exists() == false) {
-                return 0;
-            }
-            Scanner sr = new Scanner(f);
-            if (sr.hasNextInt())
-            {
-                result = sr.nextInt();
-            }
-            sr.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+    public static double idf(String term, int totalDocNum, Trie allTrie) {
+        TrieNode node = allTrie.getNode(term);
+        if (node == null) {
+            return 0.0;
         }
-        return result;
+        double containTermDocNum = (double) node.count;
+        return Math.log(totalDocNum / containTermDocNum);
+    }
+    
+    public static double tf_idf(double tf, double idf) {
+        return tf * idf;
     }
 }

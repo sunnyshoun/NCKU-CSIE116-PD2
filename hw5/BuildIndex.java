@@ -7,7 +7,7 @@ public class BuildIndex {
     public static void main(String[] args) {
         String corpusName = getCorpusName(args[0]);
         ArrayList<String> docs = readAsDocs(args[0]);
-        Indexer.buildTrie(corpusName, docs);
+        Indexer.buildCorpusData(corpusName, docs);
     }
 
     public static ArrayList<String> readAsDocs(String filePath) {
@@ -21,7 +21,7 @@ public class BuildIndex {
             for(String line : fileContent.split("\\s?\n")) {
                 docContent += line;
                 if (i % 5 == 0) {
-                    docs.add(docContent);
+                    docs.add(docContent.trim());
                     docContent = "";
                 }
                 i++;
