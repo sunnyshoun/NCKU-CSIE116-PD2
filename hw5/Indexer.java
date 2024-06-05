@@ -1,9 +1,9 @@
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -49,13 +49,13 @@ public class Indexer {
     }
 
     public static HashMap<String, HashSet<Integer>> getContainDocMap(String corpusName) {
-        return MyFileIO.readContainDocSet("CorpusDatas/%s/containDocMap".formatted(corpusName));
+        return MyFileIO.readContainDocMap("CorpusDatas/%s/containDocMap".formatted(corpusName));
     }
 }
 
 class TrieNode {
     public HashMap<Character, TrieNode> childs = new HashMap<>();
-    public transient int count;
+    public int count;
 }
 
 class Trie {
@@ -108,67 +108,94 @@ class Trie {
 class MyFileIO {
 
     public static void writeObj(ArrayList<HashMap<String, Double>> tfidfDB, String filePath) {
-        try {
-            File f = new File(filePath);
-            f.getParentFile().mkdirs();
-            FileOutputStream fileOut = new FileOutputStream(filePath + ".ser");
-            ObjectOutputStream out = new ObjectOutputStream(fileOut);
-            out.writeObject(tfidfDB);
-            out.close();
-            fileOut.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+        delFile(filePath + ".ser");
+        for (HashMap<String, Double> map : tfidfDB) {
+            String fileContent = "";
+            for (Map.Entry<String, Double> entry : map.entrySet()) {
+                fileContent += "%s:%s,".formatted(entry.getKey(), Double.toString(entry.getValue()));
+            }
+            fileContent += "\n";
+            writeFile(fileContent, filePath + ".ser", true);
         }
     }
 
     public static void writeObj(HashMap<String, HashSet<Integer>> containDocMap, String filePath) {
-        try {
-            File f = new File(filePath);
-            f.getParentFile().mkdirs();
-            FileOutputStream fileOut = new FileOutputStream(filePath + ".ser");
-            ObjectOutputStream out = new ObjectOutputStream(fileOut);
-            out.writeObject(containDocMap);
-            out.close();
-            fileOut.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+        delFile(filePath + ".ser");
+        for (Map.Entry<String, HashSet<Integer>> entry : containDocMap.entrySet()) {
+            String fileContent = entry.getKey() + ":";
+            for (Integer docID : entry.getValue()) {
+                fileContent += "%d,".formatted(docID);
+            }
+            fileContent += "\n";
+            writeFile(fileContent, filePath + ".ser", true);
         }
     }
 
-    @SuppressWarnings("unchecked")
+    public static void writeFile(String fileContent, String filePath, boolean appendMode) {
+        try {
+            File file = new File(filePath);
+            file.getParentFile().mkdirs();
+            try (BufferedWriter bw = new BufferedWriter(new FileWriter(file, appendMode))) {
+                bw.write(fileContent);
+            }
+        }
+        catch (IOException e) {
+            ;
+        }
+    }
+
+    public static void delFile(String filePath) {
+        File file = new File(filePath);
+        if (file.exists()) {
+            file.delete();
+        }
+    }
+
     public static ArrayList<HashMap<String, Double>> readtfidfDB(String filePath) {
-        ArrayList<HashMap<String, Double>> tfidfDB = null;
+        ArrayList<HashMap<String, Double>> tfidfDB = new ArrayList<>();
         try {
-            FileInputStream fileIn = new FileInputStream(filePath + ".ser");
-            ObjectInputStream in = new ObjectInputStream(fileIn);
-            tfidfDB = (ArrayList<HashMap<String, Double>>) in.readObject();
-            in.close();
-            fileIn.close();
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
+			BufferedReader reader = new BufferedReader(new FileReader(filePath + ".ser"));
+			String line = reader.readLine();
+			while (line != null && line.length() > 0) {
+				HashMap<String, Double> map = new HashMap<>();
+                for (String pair : line.split(",")) {
+                    if (pair.length() > 0) {
+                        String[] pairArr = pair.split(":");
+                        map.put(pairArr[0], Double.valueOf(pairArr[1]));
+                    }
+                }
+                tfidfDB.add(map);
+				line = reader.readLine();
+			}
+			reader.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
         return tfidfDB;
     }
 
-    @SuppressWarnings("unchecked")
-    public static HashMap<String, HashSet<Integer>> readContainDocSet(String filePath) {
-        HashMap<String, HashSet<Integer>> tfidfDB = null;
-        try {
-            FileInputStream fileIn = new FileInputStream(filePath + ".ser");
-            ObjectInputStream in = new ObjectInputStream(fileIn);
-            tfidfDB = (HashMap<String, HashSet<Integer>>) in.readObject();
-            in.close();
-            fileIn.close();
+    public static HashMap<String, HashSet<Integer>> readContainDocMap(String filePath) {
+        HashMap<String, HashSet<Integer>> containDocMap = new HashMap<>();
 
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-        return tfidfDB;
+        try {
+			BufferedReader reader = new BufferedReader(new FileReader(filePath + ".ser"));
+			String line = reader.readLine();
+			while (line != null && line.length() > 0) {
+				HashSet<Integer> set = new HashSet<>();
+                String[] pairArr = line.split(":");
+                for (String setVars : pairArr[1].split(",")) {
+                    if (setVars.length() > 0) {
+                        set.add(Integer.valueOf(setVars));
+                    }
+                }
+                containDocMap.put(pairArr[0], set);
+				line = reader.readLine();
+			}
+			reader.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+        return containDocMap;
     }
 }
 

@@ -27,7 +27,7 @@ public class BuildIndex {
                 i++;
             }
             if(docContent != "") {
-                docs.add(docContent);
+                docs.add(docContent.trim());
             }
         }
         catch (IOException e) {
